@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="ScoreBoard" />
+  <meta name="description" content="Game score tracker — first to 1000 wins" />
+  <title>ScoreBoard</title>
+  <link rel="manifest" href="manifest.json" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+          colors: {
+            p: {
+              50:  '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe',
+              300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1',
+              600: '#4f46e5', 700: '#4338ca', 800: '#3730a3',
+            }
+          },
+          keyframes: {
+            'fade-up':   { from: { opacity:'0', transform:'translateY(8px)' }, to: { opacity:'1', transform:'translateY(0)' } },
+            'scale-in':  { from: { opacity:'0', transform:'scale(.94)' }, to: { opacity:'1', transform:'scale(1)' } },
+            'shimmer':   { '0%':{ backgroundPosition:'-200% 0' }, '100%':{ backgroundPosition:'200% 0' } },
+            'fall':      { '0%':{ transform:'translateY(-10px) rotate(0)', opacity:'1' }, '100%':{ transform:'translateY(110vh) rotate(600deg)', opacity:'0' } },
+            'bounce-in': { '0%':{ transform:'scale(.3)',opacity:'0' }, '60%':{ transform:'scale(1.08)' }, '100%':{ transform:'scale(1)',opacity:'1' } },
+          },
+          animation: {
+            'fade-up':   'fade-up .22s ease-out',
+            'scale-in':  'scale-in .2s ease-out',
+            'shimmer':   'shimmer 2.5s linear infinite',
+            'bounce-in': 'bounce-in .4s ease-out',
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background:#f1f5f9; min-height:100dvh; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; }
+    input[type=number] { -moz-appearance:textfield; }
+    .tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .tbl-wrap::-webkit-scrollbar { height:4px; }
+    .tbl-wrap::-webkit-scrollbar-track { background:#f1f5f9; }
+    .tbl-wrap::-webkit-scrollbar-thumb { background:#c7d2fe; border-radius:9999px; }
+    .piece { position:fixed; top:-16px; pointer-events:none; z-index:9999; }
+    .win-border {
+      background: linear-gradient(90deg,#6366f1,#a78bfa,#818cf8,#a78bfa,#6366f1);
+      background-size: 200% 100%;
+    }
+    .card { background:white; border-radius:20px; box-shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04); }
+    tr.srow:hover td { background:#f8f8ff !important; }
+    tr.srow td { transition:background .1s; }
+    input:focus { outline:2px solid #6366f1; outline-offset:1px; }
+    button:focus-visible { outline:2px solid #6366f1; outline-offset:2px; }
+    .safe-pb { padding-bottom: max(env(safe-area-inset-bottom,0px), 24px); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+    const WIN  = 1000;
+    const KEYS = { P: 'sb3_players', R: 'sb3_rounds' };
+    const CONF = ['#6366f1','#f59e0b','#10b981','#f43f5e','#8b5cf6','#06b6d4','#ec4899'];
+
+    const ls = {
+      get: (k, fb) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch { return fb; } },
+      set: (k, v)  => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    };
+
+    function burst() {
+      for (let i = 0; i < 70; i++) {
+        const el = document.createElement('div');
+        el.className = 'piece';
+        const s = 6 + Math.random() * 10;
+        Object.assign(el.style, {
+          left: Math.random()*100 + 'vw',
+          width: s+'px', height: s+'px',
+          background: CONF[Math.floor(Math.random()*CONF.length)],
+          borderRadius: Math.random()>.5 ? '50%' : '3px',
+          animation: `fall ${1.8+Math.random()*2}s ${Math.random()*1.2}s linear forwards`,
+        });
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 4200);
+      }
+    }
+
+    /* Icon */
+    function Icon({ name, size=18, cls='' }) {
+      const ref = useRef(null);
+      useEffect(() => {
+        if (!ref.current) return;
+        ref.current.innerHTML = `<i data-lucide="${name}"></i>`;
+        lucide.createIcons({ nodes: [ref.current] });
+        const svg = ref.current.querySelector('svg');
+        if (svg) { svg.setAttribute('width', size); svg.setAttribute('height', size); }
+      }, [name, size]);
+      return <span ref={ref} className={`inline-flex items-center justify-center shrink-0 ${cls}`} />;
+    }
+
+    /* ═══ WinnerBanner ═══════════════════════════════════ */
+    function WinnerBanner({ winner, onNewGame, onClearAll }) {
+      useEffect(() => { burst(); }, []);
+      return (
+        <div className="animate-bounce-in mb-3">
+          <div className="win-border animate-shimmer rounded-[22px] p-[2px]">
+            <div className="bg-white rounded-[20px] p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-2xl shrink-0">🏆</div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-p-500 mb-0.5">Game Over — Pemenang!</p>
+                  <h2 className="font-extrabold text-xl text-slate-800 truncate">{winner.name}</h2>
+                  <p className="text-sm text-slate-500">Score: <span className="text-p-600 font-bold">{winner.total.toLocaleString()} pts</span></p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={onNewGame}
+                  className="flex-1 py-3 rounded-xl bg-p-600 text-white text-sm font-bold active:scale-95 transition-transform">
+                  Main Lagi
+                </button>
+                <button onClick={onClearAll}
+                  className="flex-1 py-3 rounded-xl bg-slate-100 text-slate-600 text-sm font-bold active:scale-95 transition-transform">
+                  Clear All
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ═══ PlayerManager ══════════════════════════════════ */
+    function PlayerManager({ players, setPlayers, locked }) {
+      const [val, setVal] = useState('');
+      const [err, setErr] = useState('');
+      const iref = useRef(null);
+
+      const add = () => {
+        const name = val.trim();
+        if (!name) { setErr('Nama tidak boleh kosong'); return; }
+        if (players.some(p => p.toLowerCase() === name.toLowerCase())) { setErr(`"${name}" sudah ada`); return; }
+        setPlayers(p => [...p, name]);
+        setVal(''); setErr('');
+        setTimeout(() => iref.current?.focus(), 50);
+      };
+
+      const rename = (i, v) => {
+        const n = v.trim();
+        if (!n || players.some((p,j)=>j!==i&&p.toLowerCase()===n.toLowerCase())) return;
+        setPlayers(p => p.map((x,j)=>j===i?n:x));
+      };
+
+      const remove = (i) => { if (players.length > 1) setPlayers(p=>p.filter((_,j)=>j!==i)); };
+
+      return (
+        <div className="card p-4 mb-3">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-7 h-7 rounded-xl bg-p-100 flex items-center justify-center">
+              <Icon name="users" size={14} cls="text-p-600" />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Pemain</span>
+            <span className="ml-auto text-xs font-bold text-p-600 bg-p-50 px-2 py-0.5 rounded-full">{players.length}</span>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-3">
+            {players.map((p,i)=>(
+              <div key={i} className="group flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-2xl px-2.5 py-1.5 hover:border-p-300 transition-colors">
+                <span className="w-4 h-4 rounded-full bg-p-100 text-p-700 text-[9px] font-bold flex items-center justify-center">{i+1}</span>
+                <input type="text" defaultValue={p}
+                  onBlur={e=>rename(i,e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&e.target.blur()}
+                  disabled={locked}
+                  className="bg-transparent text-sm font-semibold text-slate-700 w-20 disabled:opacity-60 focus:outline-none border-b border-transparent focus:border-p-400"
+                />
+                {!locked && players.length>1 && (
+                  <button onClick={()=>remove(i)} className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-red-400 active:scale-95 ml-0.5">
+                    <Icon name="x" size={11} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {!locked && (
+            <div>
+              <div className="flex gap-2">
+                <input ref={iref} type="text" value={val}
+                  onChange={e=>{setVal(e.target.value);setErr('');}}
+                  onKeyDown={e=>e.key==='Enter'&&add()}
+                  placeholder="Nama pemain baru…"
+                  className="flex-1 text-sm border border-slate-200 rounded-2xl px-3 py-2.5 placeholder:text-slate-300 transition-all"
+                />
+                <button onClick={add}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-p-600 hover:bg-p-700 active:scale-95 text-white text-sm font-bold rounded-2xl transition-all">
+                  <Icon name="user-plus" size={14} />
+                  Tambah
+                </button>
+              </div>
+              {err && <p className="text-red-500 text-xs mt-1.5 animate-fade-up">{err}</p>}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ═══ RoundInput ═════════════════════════════════════ */
+    function RoundInput({ players, totals, onSubmit, locked }) {
+      const [vals, setVals] = useState(()=>players.map(()=>''));
+      const refs = useRef([]);
+
+      useEffect(()=>{ setVals(players.map(()=>'')); }, [players.length]);
+      useEffect(()=>{ if(!locked) setTimeout(()=>refs.current[0]?.focus(),120); }, [locked, players.length]);
+
+      const onKey = (e,i) => {
+        if (e.key==='Enter'||e.key==='Tab') {
+          e.preventDefault();
+          if (refs.current[i+1]) refs.current[i+1].focus();
+          else submit();
+        }
+      };
+
+      const submit = () => {
+        const deltas = vals.map(v=>{ const n=parseFloat(v); return isNaN(n)?0:n; });
+        onSubmit(deltas);
+        setVals(players.map(()=>''));
+        setTimeout(()=>refs.current[0]?.focus(),50);
+      };
+
+      if (locked || players.length===0) return null;
+
+      return (
+        <div className="card p-4 mb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-7 h-7 rounded-xl bg-p-100 flex items-center justify-center">
+              <Icon name="plus-circle" size={14} cls="text-p-600" />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Tambah Ronde</span>
+          </div>
+          <p className="text-[11px] text-slate-400 mb-4 ml-9">
+            Masukkan <strong className="text-slate-600">poin ronde ini</strong> — boleh + atau −, otomatis ditambah ke total
+          </p>
+
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {players.map((player,i)=>{
+              const cur   = totals[i]||0;
+              const d     = parseFloat(vals[i]);
+              const prev  = !isNaN(d) ? cur : null;
+              const after = !isNaN(d) ? cur+d : null;
+              return (
+                <div key={i}>
+                  {/* name + current */}
+                  <div className="flex items-baseline justify-between mb-1.5 px-0.5">
+                    <span className="text-xs font-bold text-slate-700 truncate max-w-[70%]">{player}</span>
+                    <span className={`text-[11px] font-semibold tabular-nums ${cur>0?'text-emerald-500':cur<0?'text-red-400':'text-slate-400'}`}>
+                      {cur>0?`+${cur}`:cur}
+                    </span>
+                  </div>
+
+                  {/* input */}
+                  <input
+                    ref={el=>refs.current[i]=el}
+                    type="number" inputMode="numeric"
+                    value={vals[i]}
+                    onChange={e=>setVals(v=>v.map((x,j)=>j===i?e.target.value:x))}
+                    onKeyDown={e=>onKey(e,i)}
+                    placeholder="0"
+                    className={`w-full text-center text-lg font-extrabold border-2 rounded-2xl px-2 py-3 transition-all placeholder:text-slate-200 placeholder:font-normal
+                      ${ vals[i]!==''&&!isNaN(d)
+                          ? d>0 ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                          : d<0 ? 'border-red-300 bg-red-50 text-red-600'
+                          :       'border-slate-200 bg-white text-slate-500'
+                          :       'border-slate-200 bg-white text-slate-800'
+                      }`}
+                  />
+
+                  {/* preview: sebelum → sesudah */}
+                  <div className="h-5 flex items-center justify-center gap-1 mt-1">
+                    {after!==null && (
+                      <>
+                        <span className={`text-[10px] font-semibold tabular-nums ${cur>0?'text-emerald-400':cur<0?'text-red-400':'text-slate-400'}`}>{cur}</span>
+                        <span className="text-[10px] text-slate-300">→</span>
+                        <span className={`text-[11px] font-bold tabular-nums ${after>0?'text-emerald-600':after<0?'text-red-500':'text-slate-500'}`}>{after.toLocaleString()}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <button onClick={submit}
+            className="w-full flex items-center justify-center gap-2 py-3.5 bg-p-600 hover:bg-p-700 active:scale-[.98] text-white text-sm font-bold rounded-2xl transition-all shadow shadow-p-200">
+            <Icon name="check-circle" size={16} />
+            Submit Ronde
+          </button>
+        </div>
+      );
+    }
+
+    /* ═══ ScoreTable ═════════════════════════════════════ */
+    function ScoreTable({ players, rounds, winner, onDelete }) {
+      if (players.length===0) return null;
+
+      // running[rIdx][pIdx] = cumulative sum of deltas up to rIdx
+      const running = useMemo(()=>{
+        return rounds.map((_,rIdx)=>
+          players.map((_,pIdx)=>
+            rounds.slice(0,rIdx+1).reduce((s,r)=>s+(r[pIdx]||0),0)
+          )
+        );
+      },[rounds,players.length]);
+
+      const totals = players.map((_,pIdx)=>
+        rounds.length>0 ? (running[rounds.length-1]?.[pIdx]||0) : 0
+      );
+
+      const cc = n => n>0?'text-emerald-600':n<0?'text-red-500':'text-slate-400';
+
+      return (
+        <div className="card overflow-hidden mb-3">
+          <div className="px-4 py-3.5 border-b border-slate-100 flex items-center gap-2">
+            <div className="w-7 h-7 rounded-xl bg-p-100 flex items-center justify-center">
+              <Icon name="bar-chart-2" size={14} cls="text-p-600" />
+            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Scoreboard</span>
+            <span className="ml-auto text-xs font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{rounds.length} ronde</span>
+          </div>
+
+          {rounds.length===0 ? (
+            <div className="py-14 text-center">
+              <span className="text-3xl block mb-2">🎲</span>
+              <p className="text-sm text-slate-400">Belum ada ronde — tambah di atas!</p>
+            </div>
+          ):(
+            <div className="tbl-wrap">
+              <table className="w-full text-sm border-collapse" style={{minWidth: `${80 + players.length*100}px`}}>
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <th className="text-left px-4 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wide w-12 sticky left-0 bg-slate-50">#</th>
+                    {players.map((p,i)=>(
+                      <th key={i} className={`px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wide whitespace-nowrap
+                        ${winner?.idx===i?'text-p-600':'text-slate-400'}`}>
+                        {winner?.idx===i?'🏆 ':''}{p}
+                      </th>
+                    ))}
+                    <th className="w-8 sticky right-0 bg-slate-50" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rounds.map((round,rIdx)=>(
+                    <tr key={rIdx} className="srow border-b border-slate-50 group animate-fade-up">
+                      <td className="px-4 py-3 text-[11px] font-mono text-slate-400 sticky left-0 bg-white">R{rIdx+1}</td>
+                      {players.map((_,pIdx)=>{
+                        const run   = running[rIdx]?.[pIdx]??0;
+                        const delta = round[pIdx]||0;
+                        return (
+                          <td key={pIdx} className="px-3 py-2.5 text-center">
+                            <span className={`block text-sm font-bold tabular-nums ${cc(run)}`}>{run.toLocaleString()}</span>
+                            {delta!==0&&(
+                              <span className={`text-[10px] font-semibold tabular-nums ${delta>0?'text-emerald-400':'text-red-400'}`}>
+                                {delta>0?`+${delta}`:delta}
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="px-2 py-2.5 sticky right-0 bg-white">
+                        <button onClick={()=>onDelete(rIdx)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 active:scale-90">
+                          <Icon name="trash-2" size={13} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-slate-200 bg-slate-50">
+                    <td className="px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wide sticky left-0 bg-slate-50">Total</td>
+                    {totals.map((t,i)=>(
+                      <td key={i} className={`px-3 py-3 text-center font-extrabold text-sm tabular-nums ${cc(t)} ${winner?.idx===i?'bg-p-50':''}`}>
+                        {t.toLocaleString()}{winner?.idx===i&&<span className="ml-1">🏆</span>}
+                      </td>
+                    ))}
+                    <td className="sticky right-0 bg-slate-50" />
+                  </tr>
+                  <tr className="bg-white">
+                    <td className="px-4 py-2 text-[10px] text-slate-400 sticky left-0 bg-white">/{WIN}</td>
+                    {totals.map((t,i)=>{
+                      const pct = Math.min(100,Math.max(0,(t/WIN)*100));
+                      return (
+                        <td key={i} className="px-3 py-2">
+                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-500"
+                              style={{width:`${pct}%`,background:pct>=100?'#6366f1':pct>60?'#f59e0b':'#10b981'}} />
+                          </div>
+                          <p className="text-[10px] text-center text-slate-400 mt-0.5">{Math.round(pct)}%</p>
+                        </td>
+                      );
+                    })}
+                    <td className="sticky right-0 bg-white" />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ═══ App ════════════════════════════════════════════ */
+    function App() {
+      const [players, _setP] = useState(()=>ls.get(KEYS.P,[]));
+      const [rounds,  _setR] = useState(()=>ls.get(KEYS.R,[]));
+
+      const setPlayers = useCallback(fn=>{
+        _setP(prev=>{ const next=typeof fn==='function'?fn(prev):fn; ls.set(KEYS.P,next); return next; });
+      },[]);
+
+      const setRounds = useCallback(fn=>{
+        _setR(prev=>{ const next=typeof fn==='function'?fn(prev):fn; ls.set(KEYS.R,next); return next; });
+      },[]);
+
+      // Normalize columns on player count change
+      useEffect(()=>{
+        _setR(prev=>{
+          const norm=prev.map(r=>{ const o=Array(players.length).fill(0); r.forEach((v,i)=>{ if(i<players.length)o[i]=v; }); return o; });
+          ls.set(KEYS.R,norm); return norm;
+        });
+      },[players.length]);
+
+      // totals = sum of all deltas (running total)
+      const totals = useMemo(()=>
+        players.map((_,pIdx)=>rounds.reduce((s,r)=>s+(r[pIdx]||0),0)),
+        [rounds,players.length]
+      );
+
+      const winner = useMemo(()=>{
+        const i=totals.findIndex(t=>t>=WIN);
+        return i>=0?{name:players[i],total:totals[i],idx:i}:null;
+      },[totals]);
+
+      const addRound  = ds  => setRounds(r=>[...r,ds.slice(0,players.length)]);
+      const delRound  = i   => setRounds(r=>r.filter((_,j)=>j!==i));
+      const newGame   = ()  => setRounds([]);
+      const clearAll  = ()  => { setPlayers([]); setRounds([]); };
+
+      return (
+        <div className="min-h-dvh bg-slate-100">
+          {/* sticky header */}
+          <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/70 px-4 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 bg-p-600 rounded-2xl flex items-center justify-center text-white shadow shadow-p-300 shrink-0">
+              <Icon name="gamepad-2" size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="font-extrabold text-base text-slate-800 leading-tight">ScoreBoard</h1>
+              <p className="text-[10px] text-slate-400">First to {WIN.toLocaleString()} wins</p>
+            </div>
+            <div className="flex gap-1.5">
+              {rounds.length>0&&!winner&&(
+                <button onClick={newGame}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-500 bg-slate-100 active:scale-95 rounded-xl transition-all">
+                  <Icon name="rotate-ccw" size={11} />
+                  Reset
+                </button>
+              )}
+              <button onClick={clearAll}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-500 bg-slate-100 active:scale-95 rounded-xl transition-all">
+                <Icon name="trash-2" size={11} />
+                Clear
+              </button>
+            </div>
+          </header>
+
+          <main className="max-w-lg mx-auto px-3 pt-4 pb-10 safe-pb">
+            {winner && <WinnerBanner winner={winner} onNewGame={newGame} onClearAll={clearAll} />}
+            <PlayerManager players={players} setPlayers={setPlayers} locked={!!winner} />
+            <RoundInput players={players} totals={totals} onSubmit={addRound} locked={!!winner} />
+            <ScoreTable players={players} rounds={rounds} winner={winner} onDelete={delRound} />
+            <p className="text-center text-[11px] text-slate-400 mt-3">
+              {players.length} pemain · {rounds.length} ronde · localStorage
+            </p>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+
+  <!-- PWA -->
+  <script>
+    // Inline manifest (no separate file needed)
+    const manifest = {
+      name: 'ScoreBoard',
+      short_name: 'ScoreBoard',
+      description: 'Game score tracker',
+      start_url: '.',
+      display: 'standalone',
+      background_color: '#f1f5f9',
+      theme_color: '#4f46e5',
+      icons: [
+        { src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%234f46e5'/><text y='.9em' font-size='70' x='15'>🎮</text></svg>", sizes: '192x192', type: 'image/svg+xml' },
+        { src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%234f46e5'/><text y='.9em' font-size='70' x='15'>🎮</text></svg>", sizes: '512x512', type: 'image/svg+xml' },
+      ]
+    };
+    const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+    document.querySelector('link[rel=manifest]').href = URL.createObjectURL(blob);
+
+    // Service worker inline
+    if ('serviceWorker' in navigator) {
+      const sw = `
+        const CACHE = 'sb-v1';
+        const URLS = ['/'];
+        self.addEventListener('install', e => {
+          e.waitUntil(caches.open(CACHE).then(c => c.addAll(URLS).catch(()=>{})));
+          self.skipWaiting();
+        });
+        self.addEventListener('activate', e => {
+          e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));
+          self.clients.claim();
+        });
+        self.addEventListener('fetch', e => {
+          if (e.request.method !== 'GET') return;
+          e.respondWith(
+            fetch(e.request).then(r => {
+              const clone = r.clone();
+              caches.open(CACHE).then(c => c.put(e.request, clone));
+              return r;
+            }).catch(() => caches.match(e.request))
+          );
+        });
+      `;
+      const swBlob = new Blob([sw], {type:'application/javascript'});
+      const swUrl  = URL.createObjectURL(swBlob);
+      navigator.serviceWorker.register(swUrl, {scope:'/'}).catch(()=>{});
+    }
+  </script>
+</body>
+</html>
