@@ -25,6 +25,8 @@ val generatedWebAssets = layout.buildDirectory.dir("generated/webAssets")
 // sync with anything index.html references at the repository root.
 val copyWebAssets = tasks.register<Copy>("copyWebAssets") {
     description = "Copies the web application (index.html, css, js, icons, manifest, sw) into Android assets."
+    // Clear stale assets (e.g. deleted files) so the APK never ships leftovers.
+    delete(generatedWebAssets)
     from(webRoot) {
         include("index.html", "css/**", "js/**", "icons/**", "manifest.json", "sw.js")
         exclude("**/.git/**", "**/.github/**", "**/node_modules/**")
