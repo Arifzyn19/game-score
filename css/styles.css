@@ -1,0 +1,79 @@
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: #000000;
+  min-height: 100dvh;
+  color: #e4e4e7;
+}
+
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+.tbl-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tbl-wrap::-webkit-scrollbar {
+  height: 4px;
+}
+
+.tbl-wrap::-webkit-scrollbar-track {
+  background: #111113;
+}
+
+.tbl-wrap::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 9999px;
+}
+
+.piece {
+  position: fixed;
+  top: -16px;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.win-border {
+  background: linear-gradient(90deg, #6366f1, #a78bfa, #818cf8, #a78bfa, #6366f1);
+  background-size: 200% 100%;
+}
+
+.card {
+  background: #121214;
+  border: 1px solid #232327;
+  border-radius: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+tr.srow td {
+  transition: background 0.1s;
+}
+
+tr.srow:hover td {
+  background: rgba(255, 255, 255, 0.025) !important;
+}
+
+input:focus {
+  outline: 2px solid #6366f1;
+  outline-offset: 1px;
+}
+
+button:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+.safe-pb {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 24px);
+}

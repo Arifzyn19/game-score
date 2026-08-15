@@ -1,0 +1,17 @@
+# Machine-specific paths
+local.properties
+
+# Secrets — never commit keystores or passwords
+keystore.properties
+*.keystore
+*.jks
+
+# Gradle build output
+.gradle/
+build/
+app/build/
+
+# IDE
+.idea/
+*.iml
+.kotlin/
