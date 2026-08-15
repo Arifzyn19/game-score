@@ -1,3 +1,7 @@
 # Agent tooling
 .omo/
 .serena/
+
+# Android signing (never commit)
+android/release.keystore
+android/keystore.properties
