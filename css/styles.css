@@ -77,3 +77,10 @@ button:focus-visible {
 .safe-pb {
   padding-bottom: max(env(safe-area-inset-bottom, 0px), 24px);
 }
+
+/* Android WebView edge-to-edge: keep the sticky header below the status bar.
+   !important wins over Tailwind's py-3 utility (same specificity, later
+   injected stylesheet). */
+.safe-pt {
+  padding-top: max(env(safe-area-inset-top, 0px), 12px) !important;
+}
