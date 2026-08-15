@@ -11,9 +11,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.webkit.WebViewAssetLoader
 
 /**
@@ -33,14 +32,16 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Edge-to-edge: draw behind the system bars and let the app content
-        // handle the insets (padded below in the insets listener).
+        // Edge-to-edge: draw behind the system bars. The web app handles the
+        // safe-area insets itself via env(safe-area-inset-*) in css/styles.css
+        // (viewport-fit=cover), so no native padding is applied here — a single
+        // mechanism avoids double offsets.
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowCompat.getInsetsController(window, window.decorView).apply {
             // Dark app chrome -> keep status/navigation bar icons light.
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
-            systemBarsBehavior = WindowInsetsCompat.CONSUMER_BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -74,13 +75,6 @@ class MainActivity : Activity() {
                 ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
             }
             webChromeClient = WebChromeClient()
-        }
-
-        // Keep the app content inside the system bars (status bar / nav bar).
-        ViewCompat.setOnApplyWindowInsetsListener(webView) { view, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            insets
         }
 
         setContentView(webView)
