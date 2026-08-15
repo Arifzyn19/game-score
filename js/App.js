@@ -61,9 +61,11 @@
     return (
       <div className="min-h-dvh bg-black">
         <header className="sticky top-0 z-20 bg-black/85 backdrop-blur-md border-b border-zinc-800/80 px-4 py-3 flex items-center gap-3 safe-pt">
-          <div className="w-9 h-9 bg-p-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-p-900/40 shrink-0">
-            <Icon name="gamepad-2" size={18} />
-          </div>
+          <img
+            src="icons/logo.png"
+            alt="ScoreBoard logo"
+            className="w-9 h-9 rounded-2xl object-cover shadow-lg shadow-p-900/40 shrink-0"
+          />
           <div className="flex-1 min-w-0">
             <h1 className="font-extrabold text-base text-slate-100 leading-tight">ScoreBoard</h1>
             <p className="text-[10px] text-slate-500">First to {CONFIG.WIN.toLocaleString()} wins</p>
